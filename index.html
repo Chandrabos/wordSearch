@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearchMastersPro Page Reader</title>
+ 
+    <style>
+        /* Styling for both "Read Selected Passage" and "Stop Reading" buttons */
+        .actionButton {
+            position: fixed;
+            background-color: #ff6600; /* Change the background color */
+            color: white; /* Change the text color */
+            border: none;
+            border-radius: 50%; /* Make it a circle */
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+        }
+
+        .actionButton:hover {
+            background-color: #FF9900; /* Change the background color on hover */
+        }
+
+        /* Styling for "Read Selected Passage" button position */
+        #readButton {
+            top: 550px;
+            right: 290px;
+        }
+
+        /* Styling for "Stop Reading" button position */
+        #stopButton {
+            top: 550px; /* Adjust the vertical position as needed */
+            right: 17px;
+        }
+
+        /* Styling for "Start Listening" button position */
+        #startListeningButton {
+            position: fixed;
+            bottom: 5px;
+            left: 125px;
+            background-color: #009933; /* Change the background color */
+            color: white; /* Change the text color */
+            border: none;
+            border-radius: 50%; /* Make it a circle */
+            width: 100px;
+            height: 100px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Styling for the screen */
+        .screen {
+            background-color: #FFFFFF;
+            border: 1px solid #000000;
+            width: 340px; /* Specify the width */
+            height: 490px; /* Specify the height */
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            overflow: auto; /* Add scrollbars if the content overflows the box */
+        }
+        
+    </style>
+</head>
+
+<body>
+  <button type="submit" style="background-color: cadetblue; border: none; color: white; padding: 15px 45px; text-align: center; text-decoration: none; display: inline-block; font-size: 17px; margin: 1px 1px; cursor: pointer; border-radius: 9px; transition: background-color 0.3s ease;" onmouseover="this.style.backgroundColor='#45a049'" onmouseout="this.style.backgroundColor='#4caf50'">Made by Chandrabos</button>
+    <input type="text" id="pageTitle" placeholder="Enter Title">
+    <button onclick="fetchPage()">Search</button>
+
+    <!-- "Read Selected Passage" button with styling -->
+    <button id="readButton" class="actionButton" onclick="readSelectedPassage()">R</button>
+
+    <!-- "Stop Reading" button with styling -->
+    <button id="stopButton" class="actionButton" onclick="stopReading()">S</button>
+
+    <!-- "Start Listening" button with styling -->
+    <button id="startListeningButton" onclick="startListening()">Start Listening</button>
+
+    <label for="startPosition"></label>
+    <input type="number" id="startPosition" placeholder="Start position">
+    <label for="endPosition"></label>
+    <input type="number" id="endPosition" placeholder="End position">
+
+    <div class="screen">
+        <!-- Wikipedia content goes here -->
+        <div id="content"></div>
+    </div>
+
+    <script>
+        const contentDiv = document.getElementById('content');
+        const speechSynthesis = window.speechSynthesis;
+        const utterance = new SpeechSynthesisUtterance();
+        const recognition = new webkitSpeechRecognition() || new SpeechRecognition();
+        recognition.continuous = true;
+        let listening = false;
+        let reading = false;
+
+        // Function to set start position as 0 and end position as the last word
+        function setDefaultPositions() {
+            document.getElementById('startPosition').value = '0';
+            document.getElementById('endPosition').value = '3800';
+            contentDiv.innerText.split(' ').length;
+            document.getElementById('startPosition').style.display = 'none';
+            document.getElementById('endPosition').style.display = 'none';
+        }
+      
+        // Call setDefaultPositions initially
+        setDefaultPositions();
+
+        function fetchPage() {
+            const pageTitle = document.getElementById('pageTitle').value;
+            const apiUrl = `https://en.wikipedia.org/w/api.php?action=parse&page=${pageTitle}&format=json&origin=*`;
+
+            // Stop reading before initiating a new search
+            stopReading();
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        contentDiv.innerHTML = `<p>Error: ${data.error.info}</p>`;
+                    } else {
+                        const pageContent = data.parse.text['*'];
+                        contentDiv.innerHTML = pageContent;
+                        // Reset the positions to default when a new page is fetched
+                        setDefaultPositions();
+                        // If listening is active, simulate a click on the "Read" button
+                        if (listening) {
+                            readSelectedPassage();
+                        }
+                    }
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                });
+        }
+
+        function readPage() {
+            if (!reading) {
+                const content = contentDiv.innerText;
+                utterance.text = content;
+                speechSynthesis.speak(utterance);
+                reading = true;
+
+                utterance.onend = () => {
+                    reading = false;
+                };
+            }
+        }
+
+        function stopReading() {
+            speechSynthesis.cancel();
+            reading = false;
+        }
+
+        function readSelectedPassage() {
+            const start = parseInt(document.getElementById('startPosition').value);
+            const end = parseInt(document.getElementById('endPosition').value);
+
+            if (!isNaN(start) && !isNaN(end) && start < end) {
+                const content = contentDiv.innerText.slice(start, end);
+                utterance.text = content;
+                speechSynthesis.speak(utterance);
+                reading = true;
+
+                utterance.onend = () => {
+                    reading = false;
+                };
+            } else {
+                contentDiv.innerHTML = `<p>Invalid passage range. Please enter valid start and end positions.</p>`;
+            }
+        }
+
+        function startListening() {
+            // Turn off reading when starting listening
+            stopReading();
+
+            if (!listening) {
+                recognition.start();
+                recognition.onresult = (event) => {
+                    const query = event.results[0][0].transcript;
+                    document.getElementById('pageTitle').value = query;
+                    // Automatically fetch the page and start reading
+                    fetchPage();
+                    // Note: Reading is initiated manually by clicking the "Read" button
+                };
+                listening = true;
+                document.getElementById('startListeningButton').textContent = 'Listening...';
+            } else {
+                recognition.stop();
+                listening = false;
+                document.getElementById('startListeningButton').textContent = 'Start Listening';
+            }
+        }
+    </script>
+
+</body>
+</html>
